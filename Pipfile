@@ -7,6 +7,9 @@ name = "pypi"
 flask = "*"
 gunicorn = "*"
 pymongo = "*"
+python-dotenv = "*"
+requests = "*"
+dnspython = "*"
 
 [dev-packages]
 
