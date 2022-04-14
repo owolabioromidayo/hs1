@@ -63,7 +63,16 @@ def publish_sensors():
         curr_model = db['ml_test'].find().sort('datetime', pymongo.DESCENDING)[0] #get most recent model file ( sort by date)
 
         #update stored model if not current
-        if last_update < curr_model['datetime']:
+        saved_model = os.path.isfile('model.pkl')
+
+        if not saved_model:
+            with open('model.pkl', 'w+') as _:
+                pass #create file
+
+            with open('model.pkl', 'wb') as f:
+                f.write(curr_model['file'])
+
+        elif last_update < curr_model['datetime']:
             with open('model.pkl', 'wb') as f:
                 f.write(curr_model['file'])
             
