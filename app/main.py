@@ -1,4 +1,4 @@
-import os, requests, sys, datetime
+import os, requests, sys, datetime, urllib.parse, bmemcached, json
 
 from flask import Flask, render_template, request
 import pymongo
@@ -106,8 +106,21 @@ def publish_sensors():
     json["label"] = label
     db["weather_data"].insert_one(json)
 
+    #publish to cache service
+    mc = bmemcached.Client(os.environ.get('MEMCACHEDCLOUD_SERVERS').split(','), os.environ.get('MEMCACHEDCLOUD_USERNAME'), os.environ.get('MEMCACHEDCLOUD_PASSWORD'))
+    mc.set_multi({
+        "baro_pressure": json["baro_pressure"],
+        "ext_temp": json["ext_temp"],
+        "humidity": json["humidity"], 
+        "wind_speed": json["wind_speed"],
+        "wind_direction": json["wind_direction"],
+        "internal_temp": json["internal_temp"],
+        "label": json["label"]                              
+    })
+
+
     return "Successful!"
 
-    #publish to cache service
+    
     
 
