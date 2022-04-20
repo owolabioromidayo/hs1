@@ -60,7 +60,8 @@ def publish_sensors():
         if datetime.datetime.now() - last_update >= datetime.timedelta(days = training_freq):
             print("Retraining model...")
             ML_ENDPOINT = os.environ.get("ML_ENDPOINT")
-            requests.post(f"https://{ML_ENDPOINT}/train")
+            TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
+            requests.post(f"https://{ML_ENDPOINT}/train?password={TRAINING_PASSWORD}")
         
         curr_model = db['ml_test'].find().sort('datetime', pymongo.DESCENDING)[0] #get most recent model file ( sort by date)
 
