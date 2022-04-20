@@ -30,6 +30,8 @@ def data_view():
 
 @app.route("/sensor_data/publish", methods=["POST"])
 def publish_sensors():
+    if request.args.get("password") != os.environ.get("PUBLISH_PASSWORD"):
+        return "Not authorized", 401
 
     #get json data
     json = None
