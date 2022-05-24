@@ -1,8 +1,9 @@
-import os, requests, sys, datetime, urllib.parse, bmemcached, json
+import os, requests, sys, datetime, urllib.parse, bmemcached, json, datetime, pymongo
 
 from flask import Flask, render_template, request, send_file
 from flask_cors import CORS
-import pymongo
+
+from bson.json_util import dumps
 from dotenv import load_dotenv
 
 import joblib
@@ -54,6 +55,36 @@ def get_current_ml_info():
         "confusion_matrix" : curr_model["confusion_matrix"]
     }
 
+    return json.dumps(_json, indent=4)
+
+
+@app.route("/sensor_data/get", methods=["GET"])
+def get_sensor():
+    #connect to mongodb
+    db_name = os.environ.get('MONGO_DB_NAME', None)
+    CONNECTION_STRING = os.environ.get("MONGO_CONNECTION_STRING", None)
+    client = pymongo.MongoClient(CONNECTION_STRING)
+    db = client[db_name] 
+    collection = db["weather_data"]
+    cursor = collection.find({})
+    
+    _json = {
+        "ext_temp" : [],
+        "baro_pressure": [],
+        "wind_speed" : [],
+        "wind_direction": [],
+        "humidity" : [],
+    }
+
+    for entry in cursor:
+        for k,v in _json.items():
+            try:
+                v.append(entry[k])
+            except:
+                pass
+
+
+    # return json.dumps(json.loads(dumps(cursor)), indent=4)   
     return json.dumps(_json, indent=4)
 
 
@@ -149,6 +180,7 @@ def publish_sensors():
 
     #save labelled data to db
     _json["label"] = label
+    _json["datetime" ] = datetime.datetime.now()
     db["weather_data"].insert_one(_json)
 
     #publish to cache service
@@ -217,7 +249,8 @@ def publish_sensors():
         "wind_direction": _json["wind_direction"],
         "internal_temp": _json["internal_temp"],
         "label": _json["label"],
-        "icon_image_url": im_url
+        "icon_image_url": im_url,
+        "datetime" : _json["datetime"]
     }
 
     for k, v in store.items():
