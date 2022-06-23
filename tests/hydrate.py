@@ -20,12 +20,51 @@ for i in range(N):
         "ext_temp":  random.randrange(100),
         "humidity":  random.randrange(100),
         "wind_speed":  random.randrange(100),
+        "gas_resistance":  random.randrange(3400),
         "wind_direction":  random.choice(['N', 'W', 'S', 'E']),
         "internal_temp": random.randrange(60),
         "uv": random.randrange(10),
         "battery_percentage": random.randrange(100),
         "datetime": datetime.datetime.now() + datetime.timedelta(seconds=60*30*(i+1)),
-        "label": "Clear sky"
+        "label": random.choice([
+            "Thunderstorm with light rain",
+            "Thunderstorm with rain",
+            "Thunderstorm with heavy rain",
+            "Thunderstorm with light drizzle",
+            "Thunderstorm with drizzle",
+            "Thunderstorm with heavy drizzle",
+            "Thunderstorm with Hail",
+            "Light Drizzle",
+            "Drizzle",
+            "Heavy Drizzle",
+            "Light Rain",
+            "Moderate Rain",
+            "Heavy Rain",
+            "Freezing rain",
+            "Light shower rain",
+            "Shower rain",
+            "Heavy shower rain",
+            "Light snow",
+            "Snow",
+            "Heavy Snow",
+            "Mix snow/rain",
+            "Sleet",
+            "Heavy sleet",
+            "Snow shower",
+            "Heavy snow shower",
+            "Flurries",
+            "Mist",
+            "Smoke",
+            "Haze",
+            "Sand/dust",
+            "Fog",
+            "Freezing Fog",
+            "Clear sky",
+            "Few clouds",
+            "Scattered clouds",
+            "Broken clouds",
+            "Overcast clouds",
+            "Unknown Precipitation"])
     }
 
     db['weather_data'].insert_one(_json)
@@ -100,7 +139,8 @@ for i in range(N):
             "label": _json["label"],
             "icon_image_url": im_url,
             "datetime" : _json["datetime"],
-            "battery_percentage" : _json["battery_percentage"]
+            "battery_percentage" : _json["battery_percentage"],
+            "gas_resistance" : _json["gas_resistance"]
         }
 
         for k, v in store.items():

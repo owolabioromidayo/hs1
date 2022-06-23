@@ -2,8 +2,8 @@ import requests, random, os
 from dotenv import load_dotenv
 
 load_dotenv()
-HOSTNAME = "http://127.0.0.1:5000"
 
+HOSTNAME = os.environ.get("SERVER_ENDPOINT", None)
 print("Testing endpoints")
 
 endpoints = [
@@ -17,7 +17,6 @@ endpoints = [
     ["/sensor_data/get", "Get all sensor data", "get"]
 ]
 
-
 for endpoint, message, method in endpoints:
 
     #deal with error messages from request
@@ -28,4 +27,5 @@ for endpoint, message, method in endpoints:
         print(requests.post(url=url))
     else:
         print(requests.get(url=url))
+
     print("\n")

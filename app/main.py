@@ -60,6 +60,8 @@ def get_current_weather():
         "wind_speed",
         "wind_direction",
         "internal_temp",
+        "gas_resistance",
+        "uv",
         "label",
         "icon_image_url"                         
     ])
@@ -109,6 +111,7 @@ def get_sensor():
         "wind_speed" : [],
         "uv": [],
         "humidity" : [],
+        "gas_resistance" : [],
     }
 
     for entry in cursor:
@@ -160,9 +163,14 @@ def publish_sensors():
             print("Retraining model...")
             ML_ENDPOINT = os.environ.get("ML_ENDPOINT")
             TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
-            requests.post(f"https://{ML_ENDPOINT}/train?password={TRAINING_PASSWORD}")
+            url = f"{ML_ENDPOINT}/train?password={TRAINING_PASSWORD}"
+            requests.post(url = url)
         
-        curr_model = db['ml'].find().sort('datetime', pymongo.DESCENDING)[0] #get most recent model file ( sort by date)
+        curr_model = None
+        try:
+            curr_model = db['ml'].find().sort('datetime', pymongo.DESCENDING)[0] #get most recent model file ( sort by date)
+        except:
+            return "Model being trained. None for now", 204
 
         #update stored model if not current
         saved_model = os.path.isfile('model.pkl')
@@ -183,7 +191,7 @@ def publish_sensors():
                 f.write(curr_model['file'])
 
 
-        elif last_update < curr_model['datetime']:
+        elif not last_update or (last_update < curr_model['datetime']):
             with open('model.pkl', 'wb') as f:
                 f.write(curr_model['file'])
             
@@ -287,7 +295,8 @@ def publish_sensors():
         "label": _json["label"],
         "icon_image_url": im_url,
         "datetime" : _json["datetime"],
-        "battery_percentage" : _json["battery_percentage"]
+        "battery_percentage" : _json["battery_percentage"],
+        "gas_resistance" : _json["gas_resistance"]
     }
 
     for k, v in store.items():
@@ -315,8 +324,12 @@ def toggle_mode():
 @app.route("/get_training_freq", methods=["GET"])
 def get_training_freq():
     db = get_mongo_handle()
+
+    if not db['config'].find_one({"key": "training_freq"}):
+        db['config'].insert_one({"key": "training_freq", "value": 21}) #3 weeks default training frequency
+    
     curr = db["config"].find_one({"key": "training_freq"})["value"]
-    return curr, 200
+    return str(curr), 200
     
 @app.route("/set_training_freq/<int:value>", methods=["POST"])
 def set_training_freq(value):
