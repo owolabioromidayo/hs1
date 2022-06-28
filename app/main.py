@@ -16,6 +16,14 @@ load_dotenv()
 app = Flask(__name__, static_url_path='/static')
 cors = CORS(app)
 
+def train_model():
+        ML_ENDPOINT = os.environ.get("ML_ENDPOINT")
+        TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
+
+        url = f"{ML_ENDPOINT}/train?password={TRAINING_PASSWORD}"
+
+        requests.post(url = url)
+
 def get_mongo_handle():
     #connect to mongodb
     db_name = os.environ.get('MONGO_DB_NAME', None)
@@ -37,14 +45,14 @@ def get_current_status():
     time_since_first_post = (last_post["datetime"] - first_post["datetime"]).seconds / 60
     station_status = "Online" if time_since_last_update < update_freq_w_buffer else "Offline"
     
-    mode =  db["config"].find_one({"key": "mode"})["value"]
+    # mode =  db["config"].find_one({"key": "mode"})["value"]
     _json = {
         "last_update_time" : str(last_post["datetime"]),
         "station_status" : station_status,
         "update_frequency": f"{update_freq_m} minutes",
         "uptime" : time_since_first_post , 
         "battery_percentage": last_post["battery_percentage"], #should be gotten from last post 
-        "mode" : mode
+        # "mode" : mode
         }
 
     return json.dumps(_json, indent=4)
@@ -61,6 +69,7 @@ def get_current_weather():
         "wind_direction",
         "internal_temp",
         "gas_resistance",
+        "precipitation_mmhr",
         "uv",
         "label",
         "icon_image_url"                         
@@ -89,10 +98,10 @@ def get_current_ml_info():
     _json  = {
         "accuracy" : f"{percentage}%",
         "description" : curr_model["description"],
-        "datetime": str(curr_model["datetime"]),
-        "confusion_matrix" : curr_model["confusion_matrix"],
+        # "datetime": str(curr_model["datetime"]),
+        # "confusion_matrix" : curr_model["confusion_matrix"],
         "last_update_time" : str(db['config'].find_one({"key": "last_model_update_time"})["value"]),
-        "training_freq": str(db['config'].find_one({"key": "training_freq"})["value"]),
+        # "training_freq": str(db['config'].find_one({"key": "training_freq"})["value"]),
         "n_samples_used": curr_model["n_samples_used"] 
     }
 
@@ -112,11 +121,18 @@ def get_sensor():
         "uv": [],
         "humidity" : [],
         "gas_resistance" : [],
+        "precipitation_mmhr" : [],
+        "datetime": [],
+        "battery_percentage": []
     }
 
     for entry in cursor:
         for k,v in _json.items():
             try:
+                if k =="datetime":
+                    v.append(entry[k].isoformat())
+                    continue
+
                 v.append(entry[k])
             except:
                 pass
@@ -160,11 +176,15 @@ def publish_sensors():
         training_freq = db['config'].find_one({"key": "training_freq"})["value"]
 
         if not last_update or ( datetime.datetime.now() - last_update >= datetime.timedelta(days = training_freq) ):
-            print("Retraining model...")
-            ML_ENDPOINT = os.environ.get("ML_ENDPOINT")
-            TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
-            url = f"{ML_ENDPOINT}/train?password={TRAINING_PASSWORD}"
-            requests.post(url = url)
+            ML_DEPLOYMENT  = os.environ.get("ML_DEPLOYMENT")
+            
+            if ML_DEPLOYMENT == "LAMBDA":
+                #prevent blocking
+                print("Retraining model...")
+                thread = Threading.thread(target=train_model)
+                thread.start()
+            else:
+                train_model()
         
         curr_model = None
         try:
@@ -205,6 +225,7 @@ def publish_sensors():
                                      "humidity": [_json["humidity"]], 
                                      "wind_speed": [_json["wind_speed"]],
                                      "uv": [_json["uv"]],                                 
+                                     "precipitation_mmhr": [_json["precipitation_mmhr"]],                                 
                                     })
         label = loaded_model.predict(df)[0]
 
@@ -296,7 +317,8 @@ def publish_sensors():
         "icon_image_url": im_url,
         "datetime" : _json["datetime"],
         "battery_percentage" : _json["battery_percentage"],
-        "gas_resistance" : _json["gas_resistance"]
+        "gas_resistance" : _json["gas_resistance"],
+        "precipitation_mmhr" : _json["precipitation_mmhr"]
     }
 
     for k, v in store.items():
@@ -308,8 +330,10 @@ def publish_sensors():
 @app.route("/get_mode", methods=["GET"])
 def get_mode():
     db = get_mongo_handle()
+    if not db["config"].find_one({"key": "mode"}):
+        db['config'].insert_one({"key": "mode", "value": "weather_api"}) #weather_api is default mode
+
     curr = db["config"].find_one({"key": "mode"})["value"]
-    print(curr, " here")
     return curr, 200
     
 @app.route("/toggle_mode", methods=["POST"])

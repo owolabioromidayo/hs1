@@ -20,7 +20,7 @@ print("Testing endpoints")
 
 #change mode
 db = get_mongo_handle()
-db['config'].update_one({"key": "mode"}, { "$set": { 'value': "machine_learning"} }) #enter ML mode
+#db['config'].update_one({"key": "mode"}, { "$set": { 'value': "machine_learning"} }) #enter ML mode
 
 data = {
     "baro_pressure": random.randrange(100),
@@ -34,10 +34,10 @@ data = {
 }
 
 print("Posting data in ML mode. This will send a request to train the model.")
-r = requests.post(url=URL, json=data)
-print(r) 
+#r = requests.post(url=URL, json=data)
+#print(r) 
 
-time.sleep(4*60) #best not to rush it
+#time.sleep(4*60) #best not to rush it
 
 print("Fetch new model.")
 r = requests.post(url=URL, json=data)
