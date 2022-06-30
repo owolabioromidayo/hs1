@@ -1,4 +1,4 @@
-import os, requests, sys, datetime, urllib.parse, bmemcached, json, datetime, pymongo
+import os, requests, sys, datetime, urllib.parse, bmemcached, json, datetime, pymongo, time
 
 from flask import Flask, render_template, request, send_file, redirect
 from flask_cors import CORS
@@ -39,6 +39,10 @@ def train_model():
     #wait and train the model (Blocking. which is why we thread it)
     ML_ENDPOINT = os.environ.get("ML_ENDPOINT")
     TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
+    #startup?
+    requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
+    time.sleep(30)
+    requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
     requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
 
     #create image
@@ -97,11 +101,11 @@ def train_model():
     with open(IMAGE_FILE, 'w+') as _:
                 pass #create file
 
-    fig.savefig("./dtree.png")    
+    fig.savefig("app/static/dtree.png")    
 
     db = get_mongo_handle()
     image_bin = None
-    with open("./dtree.png", "rb") as f:
+    with open("app/static/dtree.png", "rb") as f:
         image_bin = Binary(f.read())
 
 
@@ -121,14 +125,12 @@ def get_current_status():
     time_since_first_post = (last_post["datetime"] - first_post["datetime"]).seconds / 60
     station_status = "Online" if time_since_last_update < update_freq_w_buffer else "Offline"
     
-    # mode =  db["config"].find_one({"key": "mode"})["value"]
     _json = {
         "last_update_time" : str(last_post["datetime"]),
         "station_status" : station_status,
         "update_frequency": f"{update_freq_m} minutes",
         "uptime" : time_since_first_post , 
         "battery_percentage": last_post["battery_percentage"], #should be gotten from last post 
-        # "mode" : mode
         }
     return json.dumps(_json, indent=4)
 
@@ -217,6 +219,7 @@ def publish_sensors():
     if request.args.get("password") != os.environ.get("PUBLISH_PASSWORD"):
         return "Not authorized", 401
 
+    ML_DEPLOYMENT = os.environ.get("ML_DEPLOYMENT")
     #get json data
     _json = None
     content_type = request.headers.get('Content-Type')
@@ -249,8 +252,6 @@ def publish_sensors():
 
         #retrain model if set time period has elapsed
         if not last_update or ( datetime.datetime.now() - last_update >= datetime.timedelta(days = training_freq) ):
-            ML_DEPLOYMENT  = os.environ.get("ML_DEPLOYMENT")
-            
             if ML_DEPLOYMENT == "LAMBDA":
                 #prevent blocking
                 print("Retraining model...")
@@ -269,7 +270,7 @@ def publish_sensors():
         saved_model = os.path.isfile('model.pkl')
         saved_image = os.path.isfile("dtree.png")
 
-        if not saved_image:
+        if ML_DEPLOYMENT != "LAMBDA" and saved_image:
             with open('app/static/dtree.png', 'w+') as _:
                 pass #create file
 
