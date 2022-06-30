@@ -14,6 +14,7 @@ MarkupSafe==2.1.1
 numpy==1.22.3
 pandas==1.4.2
 pymongo==4.1.1
+matplotlib==3.5.1
 python-binary-memcached==0.31.1
 python-dateutil==2.8.2
 python-dotenv==0.20.0
