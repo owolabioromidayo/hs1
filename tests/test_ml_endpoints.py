@@ -10,7 +10,7 @@ def get_mongo_handle():
     client = pymongo.MongoClient(CONNECTION_STRING)
     return client[db_name] 
     
-# HOSTNAME = os.environ.get("SERVER_ENDPOINT", None)
+HOSTNAME = os.environ.get("SERVER_ENDPOINT", None)
 db = get_mongo_handle()
 
 #remove saved models so we can see first time response
@@ -21,7 +21,6 @@ print("Deleted all items from ml collection")
 print("Resetting update time")
 db['config'].update_one({"key": "last_model_update_time"}, { "$set": { 'value': None} }) 
 
-HOSTNAME="http://localhost:3000"
 PUBLISH_PASSWORD = os.environ.get("PUBLISH_PASSWORD")
 URL = f"{HOSTNAME}/sensor_data/publish?password={PUBLISH_PASSWORD}"
 print(URL)
@@ -49,7 +48,7 @@ print("Posting data in ML mode. This will send a request to train the model.")
 r = requests.post(url=URL, json=data)
 print(r) 
 
-time.sleep(6*60) #best not to rush it
+time.sleep(3*60) #best not to rush it
 
 print("Fetch new model.")
 r = requests.post(url=URL, json=data)
