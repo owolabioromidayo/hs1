@@ -11,18 +11,14 @@ from sklearn.tree import DecisionTreeClassifier
 import numpy
 import pandas as pd
 
+#image dependencies
+import matplotlib.pyplot as plt
+from sklearn import tree
+
 load_dotenv()
 
 app = Flask(__name__, static_url_path='/static')
 cors = CORS(app)
-
-def train_model():
-        ML_ENDPOINT = os.environ.get("ML_ENDPOINT")
-        TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
-
-        url = f"{ML_ENDPOINT}/train?password={TRAINING_PASSWORD}"
-
-        requests.post(url = url)
 
 def get_mongo_handle():
     #connect to mongodb
@@ -31,6 +27,86 @@ def get_mongo_handle():
     client = pymongo.MongoClient(CONNECTION_STRING)
     return client[db_name] 
 
+def train_model_from_server():
+    #Send request and return (Non blocking from server)
+    ML_ENDPOINT = os.environ.get("ML_ENDPOINT")
+    TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
+    url = f"{ML_ENDPOINT}/train?password={TRAINING_PASSWORD}"
+    requests.post(url = url)
+
+
+def train_model():
+    #wait and train the model (Blocking. which is why we thread it)
+    ML_ENDPOINT = os.environ.get("ML_ENDPOINT")
+    TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
+    requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
+
+    #create image
+    class_names = [
+        "Thunderstorm with light rain",
+        "Thunderstorm with rain",
+        "Thunderstorm with heavy rain",
+        "Thunderstorm with light drizzle",
+        "Thunderstorm with drizzle",
+        "Thunderstorm with heavy drizzle",
+        "Thunderstorm with Hail",
+        "Light Drizzle",
+        "Drizzle",
+        "Heavy Drizzle",
+        "Light Rain",
+        "Moderate Rain",
+        "Heavy Rain",
+        "Freezing rain",
+        "Light shower rain",
+        "Shower rain",
+        "Heavy shower rain",
+        "Light snow",
+        "Snow",
+        "Heavy Snow",
+        "Mix snow/rain",
+        "Sleet",
+        "Heavy sleet",
+        "Snow shower",
+        "Heavy snow shower",
+        "Flurries",
+        "Mist",
+        "Smoke",
+        "Haze",
+        "Sand/dust",
+        "Fog",
+        "Freezing Fog",
+        "Clear sky",
+        "Few clouds",
+        "Scattered clouds",
+        "Broken clouds",
+        "Overcast clouds",
+        "Unknown Precipitation"
+    ]
+
+    #get most recent model
+    dtree_model = db['ml'].find().sort('datetime', pymongo.DESCENDING)[0]
+
+    #generate model image
+    fig = plt.figure(figsize=(100,100))
+    _ = tree.plot_tree(dtree_model, 
+                    feature_names=['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'uv', 'precipitation_mmhr'],  
+                    class_names=class_names,
+                    filled=True)
+
+    #Attempting image save
+    with open(IMAGE_FILE, 'w+') as _:
+                pass #create file
+
+    fig.savefig("./dtree.png")    
+
+    db = get_mongo_handle()
+    image_bin = None
+    with open("./dtree.png", "rb") as f:
+        image_bin = Binary(f.read())
+
+
+    db['ml'].update_one({"datetime": dtree_model['datetime']}, { "$set": { 'image-png': image_bin} })
+    
 
 @app.route("/status", methods=["GET"])
 def get_current_status():
@@ -54,7 +130,6 @@ def get_current_status():
         "battery_percentage": last_post["battery_percentage"], #should be gotten from last post 
         # "mode" : mode
         }
-
     return json.dumps(_json, indent=4)
 
 
@@ -98,10 +173,7 @@ def get_current_ml_info():
     _json  = {
         "accuracy" : f"{percentage}%",
         "description" : curr_model["description"],
-        # "datetime": str(curr_model["datetime"]),
-        # "confusion_matrix" : curr_model["confusion_matrix"],
         "last_update_time" : str(db['config'].find_one({"key": "last_model_update_time"})["value"]),
-        # "training_freq": str(db['config'].find_one({"key": "training_freq"})["value"]),
         "n_samples_used": curr_model["n_samples_used"] 
     }
 
@@ -169,12 +241,13 @@ def publish_sensors():
 
         last_update = db['config'].find_one({"key": "last_model_update_time"})["value"] #get last update timestamp -> from mongo
 
-        #retrain model if set time period has elapsed
+        #set training_freq if not set
         if not db['config'].find_one({"key": "training_freq"}):
             db['config'].insert_one({"key": "training_freq", "value": 21}) #3 weeks default training frequency
 
         training_freq = db['config'].find_one({"key": "training_freq"})["value"]
 
+        #retrain model if set time period has elapsed
         if not last_update or ( datetime.datetime.now() - last_update >= datetime.timedelta(days = training_freq) ):
             ML_DEPLOYMENT  = os.environ.get("ML_DEPLOYMENT")
             
@@ -184,13 +257,13 @@ def publish_sensors():
                 thread = Threading.thread(target=train_model)
                 thread.start()
             else:
-                train_model()
+                train_model_from_server()
         
         curr_model = None
         try:
             curr_model = db['ml'].find().sort('datetime', pymongo.DESCENDING)[0] #get most recent model file ( sort by date)
         except:
-            return "Model being trained. None for now", 204
+            return "Initial Model being trained. None for now", 204
 
         #update stored model if not current
         saved_model = os.path.isfile('model.pkl')
@@ -238,7 +311,6 @@ def publish_sensors():
         weatherbit_request_string = f"https://api.weatherbit.io/v2.0/current?lat={lat}&lon={_long}&key={api_key}"
         r = requests.get(weatherbit_request_string)
         label = r.json()["data"][0]["weather"]["description"]
-
 
 
     #save labelled data to db

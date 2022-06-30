@@ -140,6 +140,7 @@ for i in range(N):
             "label": _json["label"],
             "icon_image_url": im_url,
             "datetime" : _json["datetime"],
+            "precipitation_mmhr" : _json["precipitation_mmhr"],
             "battery_percentage" : _json["battery_percentage"],
             "gas_resistance" : _json["gas_resistance"]
         }
