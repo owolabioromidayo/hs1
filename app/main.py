@@ -1,4 +1,4 @@
-import os, requests, sys, datetime, urllib.parse, bmemcached, json, datetime, pymongo, time
+import os, requests, sys, datetime, urllib.parse, bmemcached, json, datetime, pymongo, time, threading
 
 from flask import Flask, render_template, request, send_file, redirect
 from flask_cors import CORS
@@ -14,6 +14,7 @@ import pandas as pd
 #image dependencies
 import matplotlib.pyplot as plt
 from sklearn import tree
+from bson.binary import Binary
 
 load_dotenv()
 
@@ -37,13 +38,16 @@ def train_model_from_server():
 
 def train_model():
     #wait and train the model (Blocking. which is why we thread it)
+    
+    print("Starting thread")
+    db = get_mongo_handle()
+    print("Starting requests")
     ML_ENDPOINT = os.environ.get("ML_ENDPOINT")
     TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
     #startup?
-    requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
-    time.sleep(30)
-    requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
-    requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
+    r = requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
+    print(r, r.content)
+    print("Done with requests")
 
     #create image
     class_names = [
@@ -88,28 +92,40 @@ def train_model():
     ]
 
     #get most recent model
-    dtree_model = db['ml'].find().sort('datetime', pymongo.DESCENDING)[0]
+    curr_model = db['ml'].find().sort('datetime', pymongo.DESCENDING)[0]
 
+    with open('model.pkl', 'wb') as f:
+        f.write(curr_model['file'])
+
+    dtree_model = joblib.load("model.pkl")
     #generate model image
-    fig = plt.figure(figsize=(100,100))
-    _ = tree.plot_tree(dtree_model, 
+    print("Model loaded") 
+    fig = plt.figure(figsize=(30,30))
+    print("Figure objected created") 
+    _ = tree.plot_tree(dtree_model,
                     feature_names=['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'uv', 'precipitation_mmhr'],  
                     class_names=class_names,
                     filled=True)
-
+                    
+    print("Tree Image generated") 
     #Attempting image save
-    with open(IMAGE_FILE, 'w+') as _:
+    with open("app/static/dtree.png", 'w+') as _:
                 pass #create file
 
-    fig.savefig("app/static/dtree.png")    
+    print("Blank Image Created ") 
+    fig.savefig("app/static/dtree.png")   
 
-    db = get_mongo_handle()
+    print("Figure Saved.") 
+
     image_bin = None
     with open("app/static/dtree.png", "rb") as f:
         image_bin = Binary(f.read())
 
+    print("Image binary read") 
 
-    db['ml'].update_one({"datetime": dtree_model['datetime']}, { "$set": { 'image-png': image_bin} })
+    db['ml'].update_one({"datetime": curr_model['datetime']}, { "$set": { 'image-png': image_bin} })
+    print("Done") 
+
     
 
 @app.route("/status", methods=["GET"])
@@ -220,6 +236,7 @@ def publish_sensors():
         return "Not authorized", 401
 
     ML_DEPLOYMENT = os.environ.get("ML_DEPLOYMENT")
+    print(f"ML DEPLOYMENT METHOD: {ML_DEPLOYMENT}")
     #get json data
     _json = None
     content_type = request.headers.get('Content-Type')
@@ -253,9 +270,9 @@ def publish_sensors():
         #retrain model if set time period has elapsed
         if not last_update or ( datetime.datetime.now() - last_update >= datetime.timedelta(days = training_freq) ):
             if ML_DEPLOYMENT == "LAMBDA":
-                #prevent blocking
+                #prevent blocking with threads
                 print("Retraining model...")
-                thread = Threading.thread(target=train_model)
+                thread = threading.Thread(target=train_model)
                 thread.start()
             else:
                 train_model_from_server()
@@ -270,7 +287,7 @@ def publish_sensors():
         saved_model = os.path.isfile('model.pkl')
         saved_image = os.path.isfile("dtree.png")
 
-        if ML_DEPLOYMENT != "LAMBDA" and saved_image:
+        if ML_DEPLOYMENT != "LAMBDA" and saved_image: #image saving already occurs on the thread
             with open('app/static/dtree.png', 'w+') as _:
                 pass #create file
 
