@@ -254,6 +254,17 @@ def publish_sensors():
 
     print(f"Current mode: {mode}")
     label = None
+    pred_label = None
+
+    #we want to store the weather api label in the data regardless so the model gets more accurate over time even in ML mode
+    #the predicted model, however, will be saved in the cache and that's what will be displayed
+    lat = os.environ.get("LATITUDE", None)
+    _long = os.environ.get("LONGITUDE", None)
+    api_key = os.environ.get("WEATHERBIT_API_KEY", None)
+
+    weatherbit_request_string = f"https://api.weatherbit.io/v2.0/current?lat={lat}&lon={_long}&key={api_key}"
+    r = requests.get(weatherbit_request_string)
+    label = r.json()["data"][0]["weather"]["description"]
     
     if mode == "machine_learning":  
         if not db['config'].find_one({"key": "last_model_update_time"}):
@@ -318,17 +329,11 @@ def publish_sensors():
                                      "uv": [_json["uv"]],                                 
                                      "precipitation_mmhr": [_json["precipitation_mmhr"]],                                 
                                     })
-        label = loaded_model.predict(df)[0]
+        pred_label = loaded_model.predict(df)[0]
 
     else:                # mode == "weather_api"
         #use weather api
-        lat = os.environ.get("LATITUDE", None)
-        _long = os.environ.get("LONGITUDE", None)
-        api_key = os.environ.get("WEATHERBIT_API_KEY", None)
-
-        weatherbit_request_string = f"https://api.weatherbit.io/v2.0/current?lat={lat}&lon={_long}&key={api_key}"
-        r = requests.get(weatherbit_request_string)
-        label = r.json()["data"][0]["weather"]["description"]
+        pred_label = label
 
 
     #save labelled data to db
@@ -403,7 +408,7 @@ def publish_sensors():
         "wind_speed": _json["wind_speed"],
         "wind_direction": _json["wind_direction"],
         "internal_temp": _json["internal_temp"],
-        "label": _json["label"],
+        "label": str(pred_label).lower(),
         "icon_image_url": im_url,
         "datetime" : _json["datetime"],
         "battery_percentage" : _json["battery_percentage"],
