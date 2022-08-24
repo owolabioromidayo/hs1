@@ -46,6 +46,8 @@ def train_model():
     TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
     #startup?
     r = requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
+    #cold starts? fsm need to do it twice
+    r = requests.post(url = ML_ENDPOINT, json={"password": TRAINING_PASSWORD})
     print(r, r.content)
     print("Done with requests")
 
