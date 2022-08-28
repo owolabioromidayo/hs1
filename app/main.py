@@ -133,8 +133,8 @@ def train_model():
 @app.route("/status", methods=["GET"])
 def get_current_status():
     #return weather station status, last update, update freq, uptime, battery percentage (will have to fix data first, mock on FE for now)
-    update_freq_m = 30
-    update_freq_w_buffer = 60*(update_freq_m+10) #30 minutes + 10 minute buffer
+    update_freq_m = 45 
+    update_freq_w_buffer = 60*(update_freq_m+10) #  +10 minute buffer
     db = get_mongo_handle()
     last_post = db["weather_data"].find_one({}, sort=[("_id", pymongo.DESCENDING)])
     first_post = db["weather_data"].find_one({}, sort=[("_id", pymongo.ASCENDING)])
