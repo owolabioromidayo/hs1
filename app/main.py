@@ -138,9 +138,11 @@ def get_current_status():
     db = get_mongo_handle()
     last_post = db["weather_data"].find_one({}, sort=[("_id", pymongo.DESCENDING)])
     first_post = db["weather_data"].find_one({}, sort=[("_id", pymongo.ASCENDING)])
+    # print(last_post, first_post)
 
     time_since_last_update = (datetime.datetime.now() - last_post["datetime"]).seconds
-    time_since_first_post = (last_post["datetime"] - first_post["datetime"]).seconds / 60
+    time_since_first_post = (last_post["datetime"] - first_post["datetime"]).total_seconds() / 3600
+
     station_status = "Online" if time_since_last_update < update_freq_w_buffer else "Offline"
     
     _json = {
