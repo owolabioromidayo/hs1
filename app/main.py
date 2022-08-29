@@ -388,7 +388,7 @@ def publish_sensors():
         "unknown precipitation": "u00"
     }
 
-    icon_code = icon_map[_json['label']] 
+    icon_code = icon_map[str(pred_label).lower()] 
 
     #get time
     timezonedb_key = os.environ.get("TIMEZONEDB_KEY", None)
